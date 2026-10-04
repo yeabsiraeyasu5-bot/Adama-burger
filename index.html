@@ -15,8 +15,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Adama Burger &amp; Pizza | Burgers, Pizza &amp; Delivery in Adama">
 <meta name="twitter:description" content="Adama Burger &amp; Pizza is a restaurant in Adama, Ethiopia serving burgers, pizza, and drinks, with delivery available. Browse the menu and order online.">
-<link rel="icon" type="image/png" href="assets/logo-256.png">
-<link rel="apple-touch-icon" href="assets/logo-256.png">
+<link rel="icon" type="image/png" href="logo-256.png">
+<link rel="apple-touch-icon" href="logo-256.png">
 <link rel="preconnect" href="https://images.unsplash.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap">
 <style>
@@ -1862,7 +1862,7 @@ function setLoading(btn, on) { btn.classList.toggle('is-loading', on); if (on) b
    src/components/Brand.js, Stars.js, Chip
    ========================================================= */
 function BrandMark() {
-  return `<img class="brand-mark" src="assets/logo-256.png" width="40" height="40" alt="" decoding="async">`;
+  return `<img class="brand-mark" src="logo-256.png" width="40" height="40" alt="" decoding="async">`;
 }
 function Brand(cls = '') {
   const name = Store.state.restaurant?.name || CONFIG.brandFallback;
