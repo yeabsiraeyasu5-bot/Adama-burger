@@ -2757,12 +2757,17 @@ function stopAdminOrdersRealtime() {
 function startAdminOrdersRealtime() {
   if (adminOrdersChannel) return;   // already subscribed: never create a second channel
   adminOrdersChannel = supabaseClient.channel('admin-orders-insert')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
+      console.log('ADMIN ORDERS REALTIME INSERT:', payload);
       if (!onAdminOrders()) { stopAdminOrdersRealtime(); return; }   // admin left the page: self-clean
       Router.render({ refresh: true });                               // re-runs AdminViews.orders -> Api.getOrders() (real Supabase list)
     })
     .subscribe((status, err) => {
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Admin orders Realtime subscription failed:', status, err || '');
+      console.log('ADMIN ORDERS REALTIME STATUS:', status);
+      if (status === 'SUBSCRIBED') console.log('ADMIN ORDERS REALTIME CONNECTED');
+      else if (status === 'CHANNEL_ERROR') console.error('ADMIN ORDERS REALTIME CHANNEL_ERROR:', { status, err });
+      else if (status === 'TIMED_OUT') console.warn('ADMIN ORDERS REALTIME TIMED OUT');
+      else if (status === 'CLOSED') console.log('ADMIN ORDERS REALTIME CLOSED');
     });
 }
 Pages.admin = {
