@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F97316">
-<title>Adama  &amp; Pizza | Burgers, Pizza &amp; Delivery in Adama</title>
+<title>Adama Burger &amp; Pizza | Burgers, Pizza &amp; Delivery in Adama</title>
 <meta name="description" content="Adama Burger &amp; Pizza is a restaurant in Adama, Ethiopia serving burgers, pizza, and drinks, with delivery available. Browse the menu and order online.">
 <meta name="robots" content="index, follow">
 <meta property="og:type" content="website">
@@ -1647,8 +1647,18 @@ submitContactMessage: async payload => {
       MOCK.categories = MOCK.categories.filter(x => x.id !== id); return MockDB.save({ ok: true }); } }),
     moveCategory: (id, dir) => request(`/admin/categories/${id}/move`, { method: 'POST', body: { dir }, mock: () => {
       const l = MOCK.categories, i = l.findIndex(x => x.id === id), j = i + dir; if (i < 0 || j < 0 || j >= l.length) return { ok: true }; [l[i], l[j]] = [l[j], l[i]]; return MockDB.save({ ok: true }); } }),
-    setOrderStatus: (id, status) => request(`/admin/orders/${id}`, { method: 'PATCH', body: { status }, mock: () => {
-      const o = MOCK.orders.find(x => x.id === id); if (!o) throw new ApiError('Order not found', { status: 404 }); o.status = status; return MockDB.save(o); } }),
+    setOrderStatus: async (id, status) => {
+      const { data, error } = await supabaseClient.from('orders').update({ status }).eq('id', id).select('id');
+      if (error) {
+        console.error(`Admin setOrderStatus failed for order "${id}" -> "${status}":`, error);
+        throw new ApiError(error.message || 'Could not update the order status in Supabase', { status: 500 });
+      }
+      if (!data?.length) {   // no error but no row changed: wrong id, or RLS refused the update
+        console.error(`Admin setOrderStatus updated no rows for order "${id}" -> "${status}" (unknown id, or blocked by RLS).`);
+        throw new ApiError('Order not found, or you do not have permission to update it', { status: 404 });
+      }
+      return { ok: true };
+    },
     setPaymentStatus: (id, status) => request(`/admin/orders/${id}/payment`, { method: 'PATCH', body: { status }, mock: () => {
       const o = MOCK.orders.find(x => x.id === id); if (!o?.payment || o.payment.method !== 'telebirr') throw new ApiError('Nothing to review on this order', { status: 404 });
       if (!['approved', 'rejected', 'awaiting_review'].includes(status)) throw new ApiError('Invalid payment status', { status: 422 });
