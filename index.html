@@ -2746,31 +2746,53 @@ const AdminViews = {
   },
 };
 /* Realtime: a new customer order (INSERT on public.orders) refreshes Admin -> Orders without a manual reload.
-   One channel at a time. The Router runs a page's cleanup before every render, so the channel is kept only while the admin
-   stays on #/admin/orders (re-renders, filters, status changes) and is removed when they leave or sign out. */
-let adminOrdersChannel = null;
+   One channel at a time, and only while the admin is on #/admin/orders. The Router runs a page's cleanup before every render,
+   so the channel survives re-renders / filter changes / status updates on that page and is removed when the admin leaves or signs out.
+   Each subscription uses a unique channel name: removeChannel() is async, and supabase-js hands back the *existing* channel for a
+   repeated name, which would throw on .on() after subscribe() if the admin left and came back quickly. */
+const ARL = '[Admin Orders Realtime]';
+let adminOrdersChannel = null, adminOrdersSeq = 0, adminOrdersTimer = null;
 const onAdminOrders = () => Router.parse().path === '/admin/orders' && Auth.isAdmin();
 function stopAdminOrdersRealtime() {
+  clearTimeout(adminOrdersTimer); adminOrdersTimer = null;
   if (!adminOrdersChannel) return;
-  const ch = adminOrdersChannel; adminOrdersChannel = null;
-  Promise.resolve(supabaseClient.removeChannel(ch)).catch(e => console.warn('Could not remove the admin orders Realtime channel:', e));
+  const ch = adminOrdersChannel; adminOrdersChannel = null;   // cleared first: late callbacks of this channel are ignored
+  console.log(`${ARL} unsubscribing (admin left Orders or signed out)`);
+  Promise.resolve(supabaseClient.removeChannel(ch))
+    .then(r => console.log(`${ARL} channel removed:`, r))
+    .catch(e => console.warn(`${ARL} could not remove the channel:`, e));
+}
+function refreshAdminOrdersSoon() {   // coalesces a burst of inserts into one re-render
+  clearTimeout(adminOrdersTimer);
+  adminOrdersTimer = setTimeout(() => {
+    adminOrdersTimer = null;
+    if (onAdminOrders()) Router.render({ refresh: true });   // re-runs AdminViews.orders -> Api.getOrders() (real Supabase list)
+  }, 250);
 }
 function startAdminOrdersRealtime() {
-  if (adminOrdersChannel) return;   // already subscribed: never create a second channel
-  adminOrdersChannel = supabaseClient.channel('admin-orders-insert')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
-      console.log('ADMIN ORDERS REALTIME INSERT:', payload);
-      if (!onAdminOrders()) { stopAdminOrdersRealtime(); return; }   // admin left the page: self-clean
-      Router.render({ refresh: true });                               // re-runs AdminViews.orders -> Api.getOrders() (real Supabase list)
+  if (adminOrdersChannel) { console.log(`${ARL} already subscribed, not creating another channel`); return; }   // never a second channel
+  const name = `admin-orders-insert-${++adminOrdersSeq}`, ch = supabaseClient.channel(name);
+  let connectedBefore = false;
+  adminOrdersChannel = ch;
+  console.log(`${ARL} subscribing to INSERT on public.orders (channel "${name}")`);
+  ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, payload => {
+      if (ch !== adminOrdersChannel) return;
+      console.log(`${ARL} NEW ORDER RECEIVED:`, payload?.new?.order_number || payload?.new?.id || '(unknown id)', payload);
+      if (!onAdminOrders()) { stopAdminOrdersRealtime(); return; }   // admin already left the page: self-clean
+      refreshAdminOrdersSoon();
     })
     .subscribe((status, err) => {
-      console.log('ADMIN ORDERS REALTIME STATUS:', status);
-      if (status === 'SUBSCRIBED') console.log('ADMIN ORDERS REALTIME CONNECTED');
-      else if (status === 'CHANNEL_ERROR') console.error('ADMIN ORDERS REALTIME CHANNEL_ERROR:', { status, err });
-      else if (status === 'TIMED_OUT') console.warn('ADMIN ORDERS REALTIME TIMED OUT');
-      else if (status === 'CLOSED') console.log('ADMIN ORDERS REALTIME CLOSED');
+      console.log(`${ARL} subscription status: ${status}${ch !== adminOrdersChannel ? ' (old channel)' : ''}`);
+      if (ch !== adminOrdersChannel) return;
+      if (status === 'SUBSCRIBED') {
+        console.log(`${ARL} CONNECTED: listening for new orders`);
+        if (connectedBefore && onAdminOrders()) refreshAdminOrdersSoon();   // re-connected after a drop: pick up orders missed meanwhile
+        connectedBefore = true;
+      } else if (status === 'CHANNEL_ERROR') console.error(`${ARL} SUBSCRIPTION ERROR (CHANNEL_ERROR):`, err || '(no details)');
+      else if (status === 'TIMED_OUT') console.error(`${ARL} SUBSCRIPTION ERROR (TIMED_OUT): the connection timed out`, err || '');
     });
 }
+window.addEventListener('hashchange', () => { if (adminOrdersChannel && !onAdminOrders()) stopAdminOrdersRealtime(); });   // safety net, e.g. if a page render failed before its cleanup was registered
 Pages.admin = {
   title: () => t('admin.dashboard'), layout: 'admin', guard: () => Auth.isAdmin(),
   denied() { return `<div class="container section" style="max-width:640px">${EmptyState({ icon: 'lock', title: t('admin.restrictedTitle'), text: t('admin.restrictedText') })}<div style="text-align:center;margin-top:12px">${Button({ label: t('nav.login'), variant: 'primary', icon: 'login', action: 'auth:open', data: { mode: 'login' } })}</div></div>`; },
