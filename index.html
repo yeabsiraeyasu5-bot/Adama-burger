@@ -2744,9 +2744,34 @@ const AdminViews = {
       <div class="a-sec">${Button({ label: 'Reset demo data', variant: 'outline', action: 'admin:reset' })}<p class="muted" style="margin-top:8px;font-size:.85rem">Demo only: discards every change made in this admin and reloads the original sample data.</p></div>`;
   },
 };
+/* Realtime: a new customer order (INSERT on public.orders) refreshes Admin -> Orders without a manual reload.
+   One channel at a time. The Router runs a page's cleanup before every render, so the channel is kept only while the admin
+   stays on #/admin/orders (re-renders, filters, status changes) and is removed when they leave or sign out. */
+let adminOrdersChannel = null;
+const onAdminOrders = () => Router.parse().path === '/admin/orders' && Auth.isAdmin();
+function stopAdminOrdersRealtime() {
+  if (!adminOrdersChannel) return;
+  const ch = adminOrdersChannel; adminOrdersChannel = null;
+  Promise.resolve(supabaseClient.removeChannel(ch)).catch(e => console.warn('Could not remove the admin orders Realtime channel:', e));
+}
+function startAdminOrdersRealtime() {
+  if (adminOrdersChannel) return;   // already subscribed: never create a second channel
+  adminOrdersChannel = supabaseClient.channel('admin-orders-insert')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, () => {
+      if (!onAdminOrders()) { stopAdminOrdersRealtime(); return; }   // admin left the page: self-clean
+      Router.render({ refresh: true });                               // re-runs AdminViews.orders -> Api.getOrders() (real Supabase list)
+    })
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Admin orders Realtime subscription failed:', status, err || '');
+    });
+}
 Pages.admin = {
   title: () => t('admin.dashboard'), layout: 'admin', guard: () => Auth.isAdmin(),
   denied() { return `<div class="container section" style="max-width:640px">${EmptyState({ icon: 'lock', title: t('admin.restrictedTitle'), text: t('admin.restrictedText') })}<div style="text-align:center;margin-top:12px">${Button({ label: t('nav.login'), variant: 'primary', icon: 'login', action: 'auth:open', data: { mode: 'login' } })}</div></div>`; },
+  mount(el, ctx) {   // runs after every successful admin render; the returned cleanup runs before the next render
+    if (ctx.section === 'orders') startAdminOrdersRealtime(); else stopAdminOrdersRealtime();
+    return () => { if (!onAdminOrders()) stopAdminOrdersRealtime(); };
+  },
   async render(ctx) {
     const cur = ADMIN_NAV.some(([k]) => k === ctx.section) ? ctx.section : 'dashboard';
     const links = ADMIN_NAV.map(([k, ic]) => `<a class="admin-link ${k === cur ? 'is-active' : ''}" href="#/admin${k === 'dashboard' ? '' : '/' + k}" ${k === cur ? 'aria-current="page"' : ''}>${Icon(ic, 18)}${esc(t('admin.' + k))}</a>`).join('');
