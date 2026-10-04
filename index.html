@@ -15,7 +15,8 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Adama Burger &amp; Pizza | Burgers, Pizza &amp; Delivery in Adama">
 <meta name="twitter:description" content="Adama Burger &amp; Pizza is a restaurant in Adama, Ethiopia serving burgers, pizza, and drinks, with delivery available. Browse the menu and order online.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23F97316'/%3E%3Cpath d='M10 19c0-5 4.5-8 10-8s10 3 10 8H10Z' fill='%231C1917'/%3E%3Crect x='9' y='21.5' width='22' height='3.5' rx='1.75' fill='%23FFF8EE'/%3E%3Cpath d='M10 27.5h20c0 3-2.5 5-5 5H15c-2.5 0-5-2-5-5Z' fill='%231C1917'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="assets/logo-256.png">
+<link rel="apple-touch-icon" href="assets/logo-256.png">
 <link rel="preconnect" href="https://images.unsplash.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Ethiopic:wght@400;500;600;700&display=swap">
 <style>
@@ -174,7 +175,7 @@ h3 { font-size: 1.05rem; line-height: 1.3; font-weight: 600; letter-spacing: -.0
 .site-header.is-scrolled { border-color: var(--border); box-shadow: var(--shadow-sm); }
 .header-inner { height: var(--header-h); display: flex; align-items: center; gap: 16px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; margin-right: auto; }
-.brand-mark { width: 40px; height: 40px; flex: none; border-radius: 12px; }
+.brand-mark { width: 40px; height: 40px; flex: none; border-radius: 50%; object-fit: contain; display: block; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.05; }
 .brand-text b { font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
 .brand-text small { font-size: .74rem; color: var(--muted); font-weight: 500; margin-top: 3px; }
@@ -1861,7 +1862,7 @@ function setLoading(btn, on) { btn.classList.toggle('is-loading', on); if (on) b
    src/components/Brand.js, Stars.js, Chip
    ========================================================= */
 function BrandMark() {
-  return `<svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="12" fill="#F97316"/><path d="M10 19c0-5 4.5-8 10-8s10 3 10 8H10Z" fill="#1C1917"/><rect x="9" y="21.5" width="22" height="3.5" rx="1.75" fill="#FFF8EE"/><path d="M10 27.5h20c0 3-2.5 5-5 5H15c-2.5 0-5-2-5-5Z" fill="#1C1917"/></svg>`;
+  return `<img class="brand-mark" src="assets/logo-256.png" width="40" height="40" alt="" decoding="async">`;
 }
 function Brand(cls = '') {
   const name = Store.state.restaurant?.name || CONFIG.brandFallback;
