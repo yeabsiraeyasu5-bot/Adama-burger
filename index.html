@@ -1648,16 +1648,21 @@ submitContactMessage: async payload => {
     moveCategory: (id, dir) => request(`/admin/categories/${id}/move`, { method: 'POST', body: { dir }, mock: () => {
       const l = MOCK.categories, i = l.findIndex(x => x.id === id), j = i + dir; if (i < 0 || j < 0 || j >= l.length) return { ok: true }; [l[i], l[j]] = [l[j], l[i]]; return MockDB.save({ ok: true }); } }),
     setOrderStatus: async (id, status) => {
-      const { data, error } = await supabaseClient.from('orders').update({ status }).eq('id', id).select('id');
+      const { data, error } = await supabaseClient
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .select('id, status')
+        .single();
       if (error) {
         console.error(`Admin setOrderStatus failed for order "${id}" -> "${status}":`, error);
         throw new ApiError(error.message || 'Could not update the order status in Supabase', { status: 500 });
       }
-      if (!data?.length) {   // no error but no row changed: wrong id, or RLS refused the update
-        console.error(`Admin setOrderStatus updated no rows for order "${id}" -> "${status}" (unknown id, or blocked by RLS).`);
-        throw new ApiError('Order not found, or you do not have permission to update it', { status: 404 });
+      if (!data) {
+        console.error(`Admin setOrderStatus: Supabase returned no row for order "${id}" -> "${status}".`);
+        throw new ApiError('The order could not be updated', { status: 404 });
       }
-      return { ok: true };
+      return { ok: true, order: data };
     },
     setPaymentStatus: (id, status) => request(`/admin/orders/${id}/payment`, { method: 'PATCH', body: { status }, mock: () => {
       const o = MOCK.orders.find(x => x.id === id); if (!o?.payment || o.payment.method !== 'telebirr') throw new ApiError('Nothing to review on this order', { status: 404 });
